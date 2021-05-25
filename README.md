@@ -14,6 +14,8 @@ This project provides [fs2](https://github.com/typelevel/fs2) utility methods.
 ```sbt
 // use this snippet for fs2 3
 libraryDependencies += "de.lolhens" %% "fs2-utils" % "0.2.0"
+
+libraryDependencies += "de.lolhens" %% "fs2-io-utils" % "0.2.0"
 ```
 
 ## License

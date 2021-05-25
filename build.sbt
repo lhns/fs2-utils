@@ -25,8 +25,9 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
   ),
 
   libraryDependencies ++= Seq(
-    "org.scalameta" %%% "munit" % "0.7.26" % Test,
     "ch.qos.logback" % "logback-classic" % "1.2.3" % Test,
+    "de.lolhens" %%% "munit-tagless-final" % "0.1.3" % Test,
+    "org.scalameta" %%% "munit" % "0.7.26" % Test,
   ),
 
   testFrameworks += new TestFramework("munit.Framework"),
@@ -61,6 +62,7 @@ lazy val root: Project =
       publish / skip := true
     )
     .aggregate(core.projectRefs: _*)
+    .aggregate(io.projectRefs: _*)
     .aggregate(sample.projectRefs: _*)
 
 lazy val core = projectMatrix.in(file("core"))
@@ -69,11 +71,23 @@ lazy val core = projectMatrix.in(file("core"))
     name := "fs2-utils",
 
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "2.5.6",
+      "co.fs2" %%% "fs2-core" % "3.0.2",
     ),
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)
+
+lazy val io = projectMatrix.in(file("io"))
+  .settings(commonSettings)
+  .settings(
+    name := "fs2-io-utils",
+
+    libraryDependencies ++= Seq(
+      "co.fs2" %%% "fs2-io" % "3.0.2",
+    ),
+  )
+  .dependsOn(core)
+  .jvmPlatform(scalaVersions)
 
 lazy val sample = projectMatrix.in(file("sample"))
   .settings(commonSettings)
@@ -82,11 +96,9 @@ lazy val sample = projectMatrix.in(file("sample"))
 
     libraryDependencies ++= Seq(
       "ch.qos.logback" % "logback-classic" % "1.2.3",
-      "org.pcap4j" % "pcap4j-packetfactory-static" % "1.8.2",
-      "io.monix" %% "monix" % "3.4.0",
     ),
 
     publish / skip := true,
   )
-  .dependsOn(core)
+  .dependsOn(io)
   .jvmPlatform(Seq(scalaVersions.head))

@@ -71,7 +71,7 @@ lazy val core = projectMatrix.in(file("core"))
     name := "fs2-utils",
 
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.0.2",
+      "co.fs2" %%% "fs2-core" % "3.2.9",
     ),
   )
   .jvmPlatform(scalaVersions)
@@ -83,7 +83,7 @@ lazy val io = projectMatrix.in(file("io"))
     name := "fs2-io-utils",
 
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-io" % "3.0.2",
+      "co.fs2" %%% "fs2-io" % "3.2.9",
     ),
   )
   .dependsOn(core)

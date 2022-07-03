@@ -25,7 +25,7 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
   ),
 
   libraryDependencies ++= Seq(
-    "ch.qos.logback" % "logback-classic" % "1.2.3" % Test,
+    "ch.qos.logback" % "logback-classic" % "1.2.11" % Test,
     "de.lolhens" %%% "munit-tagless-final" % "0.1.3" % Test,
     "org.scalameta" %%% "munit" % "0.7.26" % Test,
   ),
@@ -95,7 +95,7 @@ lazy val sample = projectMatrix.in(file("sample"))
     name := "fs2-utils-sample",
 
     libraryDependencies ++= Seq(
-      "ch.qos.logback" % "logback-classic" % "1.2.3",
+      "ch.qos.logback" % "logback-classic" % "1.2.11",
     ),
 
     publish / skip := true,

@@ -116,7 +116,6 @@ lazy val io = projectMatrix.in(file("io"))
     ),
   )
   .jvmPlatform(scalaVersions)
-  .jsPlatform(scalaVersions)
 
 lazy val sample = projectMatrix.in(file("sample"))
   .dependsOn(io)

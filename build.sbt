@@ -1,10 +1,17 @@
-lazy val scalaVersions = Seq("2.13.8", "2.12.16")
+lazy val scalaVersions = Seq("3.1.3", "2.13.8", "2.12.16")
 
 ThisBuild / scalaVersion := scalaVersions.head
 ThisBuild / versionScheme := Some("early-semver")
+ThisBuild / organization := "de.lhns"
+
+val V = new {
+  val fs2 = "3.2.10"
+  val logbackClassic = "1.2.11"
+  val munit = "0.7.29"
+  val munitTaglessFinal = "0.2.0"
+}
 
 lazy val commonSettings: SettingsDefinition = Def.settings(
-  organization := "de.lolhens",
   version := {
     val Tag = "refs/tags/(.*)".r
     sys.env.get("CI_VERSION").collect { case Tag(tag) => tag }
@@ -25,14 +32,17 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
   ),
 
   libraryDependencies ++= Seq(
-    "ch.qos.logback" % "logback-classic" % "1.2.11" % Test,
-    "de.lolhens" %%% "munit-tagless-final" % "0.2.0" % Test,
-    "org.scalameta" %%% "munit" % "0.7.29" % Test,
+    "ch.qos.logback" % "logback-classic" % V.logbackClassic % Test,
+    "de.lolhens" %%% "munit-tagless-final" % V.munitTaglessFinal % Test,
+    "org.scalameta" %%% "munit" % V.munit % Test,
   ),
 
   testFrameworks += new TestFramework("munit.Framework"),
 
-  addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
+  libraryDependencies ++= virtualAxes.?.value.getOrElse(Seq.empty).collectFirst {
+    case VirtualAxis.ScalaVersionAxis(version, _) if version.startsWith("2.") =>
+      compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+  },
 
   Compile / doc / sources := Seq.empty,
 
@@ -40,15 +50,33 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
 
   publishTo := sonatypePublishToBundle.value,
 
+  sonatypeCredentialHost := {
+    if (sonatypeProfileName.value == "de.lolhens")
+      "oss.sonatype.org"
+    else
+      "s01.oss.sonatype.org"
+  },
+
   credentials ++= (for {
     username <- sys.env.get("SONATYPE_USERNAME")
     password <- sys.env.get("SONATYPE_PASSWORD")
   } yield Credentials(
     "Sonatype Nexus Repository Manager",
-    "oss.sonatype.org",
+    sonatypeCredentialHost.value,
     username,
     password
-  )).toList
+  )).toList,
+
+  pomExtra := {
+    if (sonatypeProfileName.value == "de.lolhens")
+      <distributionManagement>
+        <relocation>
+          <groupId>de.lhns</groupId>
+        </relocation>
+      </distributionManagement>
+    else
+      pomExtra.value
+  }
 )
 
 name := (core.projectRefs.head / name).value
@@ -71,34 +99,35 @@ lazy val core = projectMatrix.in(file("core"))
     name := "fs2-utils",
 
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-core" % "3.0.2",
+      "co.fs2" %%% "fs2-core" % V.fs2,
     ),
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)
 
 lazy val io = projectMatrix.in(file("io"))
+  .dependsOn(core)
   .settings(commonSettings)
   .settings(
     name := "fs2-io-utils",
 
     libraryDependencies ++= Seq(
-      "co.fs2" %%% "fs2-io" % "3.0.2",
+      "co.fs2" %%% "fs2-io" % V.fs2,
     ),
   )
-  .dependsOn(core)
   .jvmPlatform(scalaVersions)
+  .jsPlatform(scalaVersions)
 
 lazy val sample = projectMatrix.in(file("sample"))
+  .dependsOn(io)
   .settings(commonSettings)
   .settings(
     name := "fs2-utils-sample",
 
     libraryDependencies ++= Seq(
-      "ch.qos.logback" % "logback-classic" % "1.2.11",
+      "ch.qos.logback" % "logback-classic" % V.logbackClassic,
     ),
 
     publish / skip := true,
   )
-  .dependsOn(io)
   .jvmPlatform(Seq(scalaVersions.head))

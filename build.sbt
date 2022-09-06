@@ -5,7 +5,7 @@ ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / organization := "de.lhns"
 
 val V = new {
-  val fs2 = "3.2.12"
+  val fs2 = "3.2.13"
   val logbackClassic = "1.4.0"
   val munit = "0.7.29"
   val munitTaglessFinal = "0.2.0"

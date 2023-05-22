@@ -1,4 +1,4 @@
-lazy val scalaVersions = Seq("3.2.2", "2.13.10", "2.12.17")
+lazy val scalaVersions = Seq("3.2.2", "2.13.10")
 
 ThisBuild / scalaVersion := scalaVersions.head
 ThisBuild / versionScheme := Some("early-semver")
@@ -28,7 +28,7 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
     )
   ),
   developers := List(
-    Developer(id = "LolHens", name = "Pierre Kisters", email = "pierrekisters@gmail.com", url = url("https://github.com/LolHens/"))
+    Developer(id = "lhns", name = "Pierre Kisters", email = "pierrekisters@gmail.com", url = url("https://github.com/lhns/"))
   ),
 
   libraryDependencies ++= Seq(

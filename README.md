@@ -13,12 +13,12 @@ This project provides several utility methods for [fs2](https://github.com/typel
 
 ```sbt
 // use this snippet for fs2 3 and the JVM
-libraryDependencies += "de.lhns" %% "fs2-utils" % "0.3.0"
+libraryDependencies += "de.lhns" %% "fs2-utils" % "0.4.0"
 
-libraryDependencies += "de.lhns" %% "fs2-io-utils" % "0.3.0"
+libraryDependencies += "de.lhns" %% "fs2-io-utils" % "0.4.0"
 
 // use this snippet for fs2 3 and JS, or cross-building
-libraryDependencies += "de.lhns" %%% "fs2-utils" % "0.3.0"
+libraryDependencies += "de.lhns" %%% "fs2-utils" % "0.4.0"
 ```
 
 ## License

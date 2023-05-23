@@ -31,33 +31,11 @@ object Fs2Utils {
         )
       }
 
-    def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] = {
-      def rec(stream: Stream[F, O], tailDeferred: Deferred[F, Stream[F, O]]): Pull[F, Nothing, Unit] =
-        stream.pull.uncons.flatMap {
-          case None =>
-            Pull.eval(tailDeferred.complete(Stream.empty).void)
-          case Some((head, tail)) =>
-            Pull.eval(for {
-              newTailDeferred <- Deferred[F, Stream[F, O]]
-              continueDeferred <- Deferred[F, Unit]
-              _ <- tailDeferred.complete(
-                Stream.chunk(head) ++
-                  Stream.eval(
-                    continueDeferred.complete(()) *>
-                      newTailDeferred.get
-                  ).flatten
-              )
-              _ <- continueDeferred.get
-            } yield newTailDeferred).flatMap { newTailDeferred =>
-              rec(tail, newTailDeferred)
-            }
-        }
-
-      Stream.eval(Deferred[F, Stream[F, O]]).flatMap { firstDeferred =>
-        Stream.eval(firstDeferred.get)
-          .concurrently(rec(self, firstDeferred).stream)
-      }
-    }
+    def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] =
+      self.pull.peek.flatMap {
+        case Some((_, stream)) => Pull.output1(stream)
+        case None => Pull.done
+      }.stream
 
     def dupe(buffer: Int = 1)(implicit F: Concurrent[F]): Stream[F, (Stream[F, O], Stream[F, O])] =
       for {

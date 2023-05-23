@@ -106,7 +106,7 @@ lazy val core = projectMatrix.in(file("core"))
   .jsPlatform(scalaVersions)
 
 lazy val io = projectMatrix.in(file("io"))
-  .dependsOn(core)
+  .dependsOn(core % "compile->compile;test->test")
   .settings(commonSettings)
   .settings(
     name := "fs2-io-utils",

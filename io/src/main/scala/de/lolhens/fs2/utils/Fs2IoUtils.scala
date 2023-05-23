@@ -3,14 +3,14 @@ package de.lolhens.fs2.utils
 import cats.effect._
 import cats.effect.std.Queue
 import de.lolhens.fs2.utils.Fs2Utils._
-import fs2.{Stream, Pipe, Pull}
+import fs2.{Pipe, Pull, Stream}
 import cats.syntax.flatMap._
 import cats.syntax.monadError._
 import cats.syntax.apply._
 import cats.syntax.functor._
 import cats.syntax.applicative._
 import cats.effect.syntax.concurrent._
-import fs2.io.file.{Files, Flags, Path, ReadCursor}
+import fs2.io.file.{Files, Flags, Path, ReadCursor, WriteCursor}
 import cats.syntax.traverse._
 
 object Fs2IoUtils {
@@ -35,23 +35,21 @@ object Fs2IoUtils {
         for {
           tempFileResource <- Stream.resource(fileResource.memoize)
           writePosSignal <- (for {
-            stream <- stream.allocated
-            tempFile <- Stream.resource(tempFileResource)
-            writeCursor <- Stream.resource(files.writeCursor(tempFile, Flags.Append))
+            writeCursorResource <- Stream.resource(tempFileResource.flatMap(files.writeCursor(_, Flags.Append)).memoize)
             writePos <- stream
               .chunks
               .zipWithScan1(0L)(_ + _.size)
-              .evalMapAccumulate(writeCursor) { case (writeCursor, (chunk, writePos)) =>
-                writeCursor.write(chunk)
-                  .map((_, writePos))
+              .evalMapAccumulate(writeCursorResource) { case (writeCursorResource, (chunk, writePos)) =>
+                writeCursorResource
+                  .use(_.write(chunk))
+                  .map(writeCursor => (Resource.pure[F, WriteCursor[F]](writeCursor), writePos))
               }
               .map(_._2)
           } yield writePos)
             .noneTerminate
             .hold(Some(0L))
         } yield for {
-          tempFile <- Stream.resource(tempFileResource)
-          readCursor <- Stream.resource(files.readCursor(tempFile, Flags.Read))
+          readCursor <- Stream.resource(tempFileResource.flatMap(files.readCursor(_, Flags.Read)))
           e <- readUntil(
             readCursor,
             writePosSignal
@@ -72,7 +70,7 @@ object Fs2IoUtils {
             case (a, b) =>
               a.memoize
                 .zip(b.through(buffer(fileResource, chunkSize)))
-                .map{case (a, b) => a ++ b}
+                .map { case (a, b) => a ++ b }
           }
     }
   }

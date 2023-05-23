@@ -18,12 +18,6 @@ object Fs2Utils {
         Stream.supervise(fiber.joinWithNever) >>
           Stream.fromQueueNoneTerminatedChunk(queue)
 
-    def allocated: Stream[F, Stream[F, O]] =
-      self.pull.peek.flatMap {
-        case Some((_, stream)) => Pull.output1(stream)
-        case None => Pull.done
-      }.stream
-
     def splitAt(n: Long)(implicit F: Concurrent[F]): Stream[F, (Stream[F, O], Stream[F, O])] =
       Stream.eval(Deferred[F, Stream[F, O]]).map { tailDeferred =>
         (

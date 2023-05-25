@@ -10,6 +10,19 @@ import fs2._
 
 object Fs2Utils {
   implicit class StreamUtilsOps[F[_], O](val self: Stream[F, O]) {
+    def appendWithLast[F2[x] >: F[x], O2 >: O](s2: Option[O] => Stream[F2, O2]): Stream[F2, O2] = {
+      def rec(stream: Stream[F, O], lastOption: Option[O]): Pull[F2, O2, Unit] =
+        stream.pull.uncons.flatMap {
+          case Some((chunk, tail)) =>
+            Pull.output(chunk) >> rec(tail, chunk.last.orElse(lastOption))
+
+          case None =>
+            s2(lastOption).pull.echo
+        }
+
+      rec(self, None).stream
+    }
+
     def start(buffer: Int = 1)(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] =
       for {
         queue <- Stream.eval(Queue.bounded[F, Option[Chunk[O]]](buffer))
@@ -31,11 +44,16 @@ object Fs2Utils {
         )
       }
 
-    def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] =
-      self.pull.peek.flatMap {
-        case Some((_, stream)) => Pull.output1(stream)
-        case None => Pull.done
-      }.stream
+    def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] = {
+      Stream.eval(Deferred[F, Stream[F, O]]).flatMap { streamDeferred =>
+        Stream.emit(Stream.eval(streamDeferred.get).flatten).concurrently {
+          self.pull.peek.flatMap {
+            case Some((_, stream)) => Pull.eval(streamDeferred.complete(stream).void)
+            case None => Pull.eval(streamDeferred.complete(Stream.empty).void)
+          }.stream
+        }
+      }
+    }
 
     def dupe(buffer: Int = 1)(implicit F: Concurrent[F]): Stream[F, (Stream[F, O], Stream[F, O])] =
       for {
@@ -76,10 +94,13 @@ object Fs2Utils {
             s.pull.uncons.flatMap {
               case Some((hd, tl)) =>
                 hd.size match {
-                  case m if m <= n => Pull.output(hd) >> go(tl, ntl.cons(Chunk(n - m).filter(_ > 0)))
+                  case m if m <= n =>
+                    Pull.output(hd) >>
+                      go(tl, ntl.cons(Chunk(n - m).filter(_ > 0)))
                   case _ =>
                     val (hdhd, hdtl) = hd.splitAt(n.toInt)
-                    Pull.output(hdhd) >> go(tl.cons(hdtl), ntl)
+                    Pull.output(hdhd) >>
+                      go(tl.cons(hdtl), ntl)
                 }
               case None => Pull.done
             }

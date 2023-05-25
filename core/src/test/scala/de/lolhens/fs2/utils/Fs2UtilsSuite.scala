@@ -1,20 +1,95 @@
 package de.lolhens.fs2.utils
 
 import cats.effect.{Deferred, IO}
-import fs2.{Chunk, Stream}
-
-import scala.util.Random
+import fs2.Stream
 import Fs2Utils._
+import cats.effect.std.Queue
+import cats.syntax.parallel._
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 class Fs2UtilsSuite extends CatsEffectSuite {
-  private lazy val bytesChunk = Chunk.array(Random.nextBytes(1_000_000))
-
   override def munitTimeout: Duration = 1.second
 
-  test("start: consume more than once should fail".fail) {
+  test("dupe") {
+    Stream.chunk(bytesChunk)
+      .covary[IO]
+      .dupe()
+      .evalMap {
+        case (a, b) =>
+          for {
+            abChunk <- a.chunkAll.compile.lastOrError
+              .parProduct(b.chunkAll.compile.lastOrError)
+          } yield {
+            println("assert")
+            assertEquals(abChunk._1, bytesChunk)
+            assertEquals(abChunk._2, bytesChunk)
+          }
+      }
+      .compile
+      .drain
+  }
+
+  test("extract") {
+    Stream.chunk(bytesChunk)
+      .covary[IO]
+      .extract(_.size.compile.lastOrError)
+      .evalMap {
+        case (stream, sizeIO) =>
+          for {
+            chunk <- stream.chunkAll.compile.lastOrError
+            size <- sizeIO
+          } yield {
+            println("assert")
+            assertEquals(chunk, bytesChunk)
+            assertEquals(size, bytesChunk.size.toLong)
+          }
+      }
+      .compile
+      .drain
+  }
+
+  test("splitAt") {
+    val limit = 1_000
+    Stream.chunk(bytesChunk)
+      .covary[IO]
+      .splitAt(limit)
+      .evalMap {
+        case (a, b) =>
+          for {
+            aChunk <- a.chunkAll.compile.lastOrError
+            bChunk <- b.chunkAll.compile.lastOrError
+          } yield {
+            println("assert")
+            assertEquals(aChunk, bytesChunk.take(limit))
+            assertEquals(bChunk, bytesChunk.drop(limit))
+          }
+      }
+      .compile
+      .drain
+  }
+
+  test("start") {
+    for {
+      queue <- Queue.bounded[IO, Unit](1)
+      _ <- (Stream.exec(queue.offer(())) ++ Stream.chunk(bytesChunk))
+        .covary[IO]
+        .start()
+        .evalMap { stream =>
+          for {
+            _ <- queue.take
+            chunk <- stream.chunkAll.compile.lastOrError
+          } yield {
+            println("assert")
+            assertEquals(chunk, bytesChunk)
+          }
+        }
+        .compile
+        .drain
+    } yield ()
+  }
+
+  test("start should not let you consume more than once".fail) {
     val iterator = List(bytesChunk).iterator
     Stream.eval(IO(iterator.next()))
       .unchunks
@@ -30,12 +105,36 @@ class Fs2UtilsSuite extends CatsEffectSuite {
           .compile
           .lastOrError
           .map { testChunk =>
-            assertEquals(bytesChunk, testChunk)
+            println("assert")
+            assertEquals(testChunk, bytesChunk)
           }
       }
   }
 
-  test("memoize: consume more than once") {
+  test("memoize should emit on empty stream") {
+    Stream.empty
+      .covary[IO]
+      .memoize
+      .evalMap(_.compile.drain)
+      .compile
+      .lastOrError
+  }
+
+  test("memoize should emit immediately") {
+    Deferred[IO, Unit].flatMap { deferred =>
+      Stream.eval(deferred.get)
+        .covary[IO]
+        .memoize
+        .evalMap(stream =>
+          deferred.complete(()) >>
+            stream.compile.drain
+        )
+        .compile
+        .lastOrError
+    }
+  }
+
+  test("memoize should let you consume more than once") {
     val iterator = List(bytesChunk).iterator
     Stream.eval(IO(iterator.next()))
       .unchunks
@@ -51,12 +150,13 @@ class Fs2UtilsSuite extends CatsEffectSuite {
           .compile
           .lastOrError
           .map { testChunk =>
-            assertEquals(bytesChunk, testChunk)
+            println("assert")
+            assertEquals(testChunk, bytesChunk)
           }
       }
   }
 
-  test("consume more than once should fail".fail) {
+  test("stream should not let you more than once".fail) {
     val iterator = List(bytesChunk).iterator
     Stream.emit(
       Stream.eval(IO(iterator.next()))
@@ -74,7 +174,8 @@ class Fs2UtilsSuite extends CatsEffectSuite {
           .compile
           .lastOrError
           .map { testChunk =>
-            assertEquals(bytesChunk, testChunk)
+            println("assert")
+            assertEquals(testChunk, bytesChunk)
           }
       }
   }

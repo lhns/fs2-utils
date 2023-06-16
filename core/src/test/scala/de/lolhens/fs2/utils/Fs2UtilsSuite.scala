@@ -156,6 +156,33 @@ class Fs2UtilsSuite extends CatsEffectSuite {
       }
   }
 
+  test("memoize should work on bigger streams") {
+    bigStream
+      .take(100_000_000)
+      .extract(compileHashInfo)
+      .flatMap { case (stream, hashInfoIO) =>
+        println("b")
+        stream
+          .memoize
+          .evalMap { stream =>
+            for {
+              testChecksum1Fiber <- compileHashInfo(stream).start
+              testChecksum2Fiber <- compileHashInfo(stream).start
+              hashInfo <- hashInfoIO
+              testChecksum1 <- testChecksum1Fiber.joinWithNever
+              testChecksum2 <- testChecksum2Fiber.joinWithNever
+            } yield {
+              println("assert")
+              println(hashInfo)
+              assertEquals(testChecksum1, hashInfo)
+              assertEquals(testChecksum2, hashInfo)
+            }
+          }
+      }
+      .compile
+      .drain
+  }
+
   test("stream should not let you more than once".fail) {
     val iterator = List(bytesChunk).iterator
     Stream.emit(

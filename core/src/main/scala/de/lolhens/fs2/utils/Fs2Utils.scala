@@ -52,13 +52,30 @@ object Fs2Utils {
       }
 
     def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] = {
-      Stream.eval(Deferred[F, Stream[F, O]]).flatMap { streamDeferred =>
-        Stream.emit(Stream.eval(streamDeferred.get).flatten).concurrently {
-          self.pull.peek.flatMap {
-            case Some((_, stream)) => Pull.eval(streamDeferred.complete(stream).void)
-            case None => Pull.eval(streamDeferred.complete(Stream.empty).void)
-          }.stream
+      def rec(stream: Stream[F, O], tailDeferred: Deferred[F, Stream[F, O]]): Pull[F, Nothing, Unit] =
+        stream.pull.uncons.flatMap {
+          case None =>
+            Pull.eval(tailDeferred.complete(Stream.empty).void)
+          case Some((head, tail)) =>
+            Pull.eval(for {
+              newTailDeferred <- Deferred[F, Stream[F, O]]
+              continueDeferred <- Deferred[F, Unit]
+              _ <- tailDeferred.complete(
+                Stream.chunk(head) ++
+                  Stream.eval(
+                    continueDeferred.complete(()) *>
+                      newTailDeferred.get
+                  ).flatten
+              )
+              _ <- continueDeferred.get
+            } yield newTailDeferred).flatMap { newTailDeferred =>
+              rec(tail, newTailDeferred)
+            }
         }
+
+      Stream.eval(Deferred[F, Stream[F, O]]).flatMap { firstDeferred =>
+        Stream.emit(Stream.eval(firstDeferred.get).flatten)
+          .concurrently(rec(self, firstDeferred).stream)
       }
     }
 

@@ -32,16 +32,23 @@ object Fs2Utils {
           Stream.fromQueueNoneTerminatedChunk(queue)
 
     def splitAt(n: Long)(implicit F: Concurrent[F]): Stream[F, (Stream[F, O], Stream[F, O])] =
-      Stream.eval(Deferred[F, Stream[F, O]]).map { tailDeferred =>
-        (
+      if (n > 0) {
+        Stream.eval(Deferred[F, Stream[F, O]]).map { tailDeferred =>
+          (
+            self
+              .pull
+              .take(n)
+              .evalMap(tail => tailDeferred.complete(tail.getOrElse(Stream.empty)).void)
+              .stream,
+            Stream.eval(tailDeferred.get)
+              .flatten
+          )
+        }
+      } else {
+        Stream.emit((
+          Stream.empty,
           self
-            .pull
-            .take(n)
-            .evalMap(tail => tailDeferred.complete(tail.getOrElse(Stream.empty)).void)
-            .stream,
-          Stream.eval(tailDeferred.get)
-            .flatten
-        )
+        ))
       }
 
     def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] = {

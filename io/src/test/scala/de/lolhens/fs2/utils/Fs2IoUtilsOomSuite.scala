@@ -16,32 +16,24 @@ class Fs2IoUtilsOomSuite extends CatsEffectSuite {
 
   test("buffer should not oom") {
     bigStream
-      .extract(_.through(fs2.hash.sha1).through(fs2.text.hex.encode).compile.string)
-      .flatMap { case (stream, checksumIO) =>
-        stream.extract(_.size.compile.lastOrError)
-          .map { case (stream, sizeIO) => (stream, checksumIO, sizeIO) }
-      }
-      .flatMap { case (stream, checksumIO, sizeIO) =>
+      .extract(compileHashInfo)
+      .flatMap { case (stream, hashInfoIO) =>
         println("b")
         stream
-          .through(Files[IO].buffer(Files[IO].tempFile, chunkSize = 1024 * 64, maxSizeBeforeWrite = /*100_000_00*/ 1))
+          .through(Files[IO].buffer(Files[IO].tempFile, chunkSize = 1024 * 64, maxSizeBeforeWrite = 100_000_00))
           .evalMap { stream =>
             println("a")
-            val calculateChecksum =
-              stream.through(fs2.hash.sha1).through(fs2.text.hex.encode).compile.string
-
             for {
-              testChecksum1Fiber <- calculateChecksum.start
-              testChecksum2Fiber <- calculateChecksum.start
-              checksum <- checksumIO
-              size <- sizeIO
+              testChecksum1Fiber <- compileHashInfo(stream).start
+              testChecksum2Fiber <- compileHashInfo(stream).start
+              hashInfo <- hashInfoIO
               testChecksum1 <- testChecksum1Fiber.joinWithNever
               testChecksum2 <- testChecksum2Fiber.joinWithNever
             } yield {
               println("assert")
-              println(size)
-              assertEquals(testChecksum1, checksum)
-              assertEquals(testChecksum2, checksum)
+              println(hashInfo)
+              assertEquals(testChecksum1, hashInfo)
+              assertEquals(testChecksum2, hashInfo)
             }
           }
       }

@@ -62,7 +62,7 @@ object Fs2IoUtils {
               case None =>
                 Stream.emit((0, false))
             }
-            .hold((0L, false))
+            .hold((0L, true))
         } yield for {
           readCursor <- Stream.resource(tempFileResource.flatMap(files.readCursor(_, Flags.Read)))
           e <- readUntilStream(
@@ -74,6 +74,11 @@ object Fs2IoUtils {
               .map(_._1)
               .filter(_ > 0L)
           ).flatMap(readCursor =>
+            Pull.eval(writePosSignal.get.map(_._1)).map(writePos =>
+              require(readCursor.offset == writePos, "did not read complete file!")
+            )
+          )
+            /*.flatMap(readCursor =>
             Pull.eval(writePosSignal.get.map(_._1)).flatMap(writePos =>
               readUntilWait(
                 readCursor,
@@ -81,7 +86,7 @@ object Fs2IoUtils {
                 writePos,
                 100.millis
               ))
-          ).void.stream
+          )*/ .void.stream
         } yield e
       }
     }

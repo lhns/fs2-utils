@@ -88,4 +88,30 @@ class Fs2UtilsOomSuite extends CatsEffectSuite {
         .drain
     } yield ()
   }
+
+  test("memoize should work on bigger streams") {
+    bigStream
+      .take(20_000_000)
+      .extract(compileHashInfo)
+      .flatMap { case (stream, hashInfoIO) =>
+        stream
+          .memoize
+          .evalMap { stream =>
+            for {
+              testChecksum1Fiber <- compileHashInfo(stream).start
+              testChecksum2Fiber <- compileHashInfo(stream).start
+              hashInfo <- hashInfoIO
+              testChecksum1 <- testChecksum1Fiber.joinWithNever
+              testChecksum2 <- testChecksum2Fiber.joinWithNever
+            } yield {
+              println("assert")
+              println(hashInfo)
+              assertEquals(testChecksum1, hashInfo)
+              assertEquals(testChecksum2, hashInfo)
+            }
+          }
+      }
+      .compile
+      .drain
+  }
 }

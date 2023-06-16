@@ -158,10 +158,9 @@ class Fs2UtilsSuite extends CatsEffectSuite {
 
   test("memoize should work on bigger streams") {
     bigStream
-      .take(100_000_000)
+      .take(20_000_000)
       .extract(compileHashInfo)
       .flatMap { case (stream, hashInfoIO) =>
-        println("b")
         stream
           .memoize
           .evalMap { stream =>

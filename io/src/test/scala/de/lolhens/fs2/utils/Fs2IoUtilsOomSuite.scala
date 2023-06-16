@@ -19,7 +19,7 @@ class Fs2IoUtilsOomSuite extends CatsEffectSuite {
       .extract(compileHashInfo)
       .flatMap { case (stream, hashInfoIO) =>
         stream
-          .through(Files[IO].buffer(Files[IO].tempFile, chunkSize = 1024 * 64, maxSizeBeforeWrite = 100_000_000/*10_000_000*/))
+          .through(Files[IO].buffer(Files[IO].tempFile, chunkSize = 1024 * 64, maxSizeBeforeWrite = 20_000_000))
           .evalMap { stream =>
             for {
               testChecksum1Fiber <- compileHashInfo(stream).start

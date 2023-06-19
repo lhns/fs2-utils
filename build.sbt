@@ -101,6 +101,8 @@ lazy val core = projectMatrix.in(file("core"))
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % V.fs2,
     ),
+
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) },
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)
@@ -114,6 +116,8 @@ lazy val io = projectMatrix.in(file("io"))
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-io" % V.fs2,
     ),
+
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) },
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)

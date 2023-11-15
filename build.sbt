@@ -1,3 +1,5 @@
+import org.scalajs.linker.interface.OutputPatterns
+
 lazy val scalaVersions = Seq("3.3.1", "2.13.12")
 
 ThisBuild / scalaVersion := scalaVersions.head
@@ -5,6 +7,7 @@ ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / organization := "de.lhns"
 
 val V = new {
+  val betterMonadicFor = "0.3.1"
   val fs2 = "3.9.3"
   val logbackClassic = "1.4.11"
   val munit = "0.7.29"
@@ -13,7 +16,7 @@ val V = new {
 
 lazy val commonSettings: SettingsDefinition = Def.settings(
   version := {
-    val Tag = "refs/tags/(.*)".r
+    val Tag = "refs/tags/v?([0-9]+(?:\\.[0-9]+)+(?:[+-].*)?)".r
     sys.env.get("CI_VERSION").collect { case Tag(tag) => tag }
       .getOrElse("0.0.1-SNAPSHOT")
   },
@@ -23,8 +26,8 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
   homepage := Some(url("https://github.com/LolHens/fs2-utils")),
   scmInfo := Some(
     ScmInfo(
-      url("https://github.com/LolHens/fs2-utils"),
-      "scm:git@github.com:LolHens/fs2-utils.git"
+      url("https://github.com/lhns/fs2-utils"),
+      "scm:git@github.com:lhns/fs2-utils.git"
     )
   ),
   developers := List(
@@ -41,7 +44,7 @@ lazy val commonSettings: SettingsDefinition = Def.settings(
 
   libraryDependencies ++= virtualAxes.?.value.getOrElse(Seq.empty).collectFirst {
     case VirtualAxis.ScalaVersionAxis(version, _) if version.startsWith("2.") =>
-      compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+      compilerPlugin("com.olegpy" %% "better-monadic-for" % V.betterMonadicFor)
   },
 
   Compile / doc / sources := Seq.empty,
@@ -101,6 +104,11 @@ lazy val core = projectMatrix.in(file("core"))
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-core" % V.fs2,
     ),
+
+    scalaJSLinkerConfig ~= {
+      _.withModuleKind(ModuleKind.ESModule)
+        .withOutputPatterns(OutputPatterns.fromJSFile("%s.mjs"))
+    },
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)
@@ -114,6 +122,11 @@ lazy val io = projectMatrix.in(file("io"))
     libraryDependencies ++= Seq(
       "co.fs2" %%% "fs2-io" % V.fs2,
     ),
+
+    scalaJSLinkerConfig ~= {
+      _.withModuleKind(ModuleKind.ESModule)
+        .withOutputPatterns(OutputPatterns.fromJSFile("%s.mjs"))
+    },
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)

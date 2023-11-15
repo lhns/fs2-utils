@@ -10,6 +10,19 @@ import fs2._
 
 object Fs2Utils {
   implicit class StreamUtilsOps[F[_], O](val self: Stream[F, O]) {
+    def appendWithLast[F2[x] >: F[x], O2 >: O](s2: Option[O] => Stream[F2, O2]): Stream[F2, O2] = {
+      def rec(stream: Stream[F, O], lastOption: Option[O]): Pull[F2, O2, Unit] =
+        stream.pull.uncons.flatMap {
+          case Some((chunk, tail)) =>
+            Pull.output(chunk) >> rec(tail, chunk.last.orElse(lastOption))
+
+          case None =>
+            s2(lastOption).pull.echo
+        }
+
+      rec(self, None).stream
+    }
+
     def start(buffer: Int = 1)(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] =
       for {
         queue <- Stream.eval(Queue.bounded[F, Option[Chunk[O]]](buffer))
@@ -19,23 +32,52 @@ object Fs2Utils {
           Stream.fromQueueNoneTerminatedChunk(queue)
 
     def splitAt(n: Long)(implicit F: Concurrent[F]): Stream[F, (Stream[F, O], Stream[F, O])] =
-      Stream.eval(Deferred[F, Stream[F, O]]).map { tailDeferred =>
-        (
+      if (n > 0) {
+        Stream.eval(Deferred[F, Stream[F, O]]).map { tailDeferred =>
+          (
+            self
+              .pull
+              .take(n)
+              .evalMap(tail => tailDeferred.complete(tail.getOrElse(Stream.empty)).void)
+              .stream,
+            Stream.eval(tailDeferred.get)
+              .flatten
+          )
+        }
+      } else {
+        Stream.emit((
+          Stream.empty,
           self
-            .pull
-            .take(n)
-            .evalMap(tail => tailDeferred.complete(tail.getOrElse(Stream.empty)).void)
-            .stream,
-          Stream.eval(tailDeferred.get)
-            .flatten
-        )
+        ))
       }
 
-    def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] =
-      self.pull.peek.flatMap {
-        case Some((_, stream)) => Pull.output1(stream)
-        case None => Pull.done
-      }.stream
+    def memoize(implicit F: Concurrent[F]): Stream[F, Stream[F, O]] = {
+      def rec(stream: Stream[F, O], tailDeferred: Deferred[F, Stream[F, O]]): Pull[F, Nothing, Unit] =
+        stream.pull.uncons.flatMap {
+          case None =>
+            Pull.eval(tailDeferred.complete(Stream.empty).void)
+          case Some((head, tail)) =>
+            Pull.eval(for {
+              newTailDeferred <- Deferred[F, Stream[F, O]]
+              continueDeferred <- Deferred[F, Unit]
+              _ <- tailDeferred.complete(
+                Stream.chunk(head) ++
+                  Stream.eval(
+                    continueDeferred.complete(()) *>
+                      newTailDeferred.get
+                  ).flatten
+              )
+              _ <- continueDeferred.get
+            } yield newTailDeferred).flatMap { newTailDeferred =>
+              rec(tail, newTailDeferred)
+            }
+        }
+
+      Stream.eval(Deferred[F, Stream[F, O]]).flatMap { firstDeferred =>
+        Stream.emit(Stream.eval(firstDeferred.get).flatten)
+          .concurrently(rec(self, firstDeferred).stream)
+      }
+    }
 
     def dupe(buffer: Int = 1)(implicit F: Concurrent[F]): Stream[F, (Stream[F, O], Stream[F, O])] =
       for {
@@ -76,10 +118,13 @@ object Fs2Utils {
             s.pull.uncons.flatMap {
               case Some((hd, tl)) =>
                 hd.size match {
-                  case m if m <= n => Pull.output(hd) >> go(tl, ntl.cons(Chunk(n - m).filter(_ > 0)))
+                  case m if m <= n =>
+                    Pull.output(hd) >>
+                      go(tl, ntl.cons(Chunk(n - m).filter(_ > 0)))
                   case _ =>
                     val (hdhd, hdtl) = hd.splitAt(n.toInt)
-                    Pull.output(hdhd) >> go(tl.cons(hdtl), ntl)
+                    Pull.output(hdhd) >>
+                      go(tl.cons(hdtl), ntl)
                 }
               case None => Pull.done
             }

@@ -1,3 +1,5 @@
+import org.scalajs.linker.interface.OutputPatterns
+
 lazy val scalaVersions = Seq("3.3.1", "2.13.12")
 
 ThisBuild / scalaVersion := scalaVersions.head
@@ -103,7 +105,10 @@ lazy val core = projectMatrix.in(file("core"))
       "co.fs2" %%% "fs2-core" % V.fs2,
     ),
 
-    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) },
+    scalaJSLinkerConfig ~= {
+      _.withModuleKind(ModuleKind.ESModule)
+        .withOutputPatterns(OutputPatterns.fromJSFile("%s.mjs"))
+    },
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)
@@ -118,7 +123,10 @@ lazy val io = projectMatrix.in(file("io"))
       "co.fs2" %%% "fs2-io" % V.fs2,
     ),
 
-    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.ESModule) },
+    scalaJSLinkerConfig ~= {
+      _.withModuleKind(ModuleKind.ESModule)
+        .withOutputPatterns(OutputPatterns.fromJSFile("%s.mjs"))
+    },
   )
   .jvmPlatform(scalaVersions)
   .jsPlatform(scalaVersions)
